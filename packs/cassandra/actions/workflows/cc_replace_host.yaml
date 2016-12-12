@@ -1,0 +1,151 @@
+version: '2.0'
+
+cassandra.cc_replace_host:
+    description: A basic workflow that replaces a dead cassandra node with a spare.
+    type: direct
+    input:
+        - dead_node
+        - healthy_node
+    output:
+        just_output_the_whole_worfklow_context: "<% $ %>"
+    tasks:
+        is_seed_node:
+            action: cassandra.is_seed_node
+            input:
+                hosts: "<% $.healthy_node %>"
+                node_id: "<% $.dead_node %>"
+            publish:
+                seed_node: "<% task(is_seed_node).result.get($.healthy_node).stdout %>"
+            on-success:
+                - abort_replace: "<% $.seed_node = 'True' %>"
+                - create_vm: "<% $.seed_node = 'False' %>"
+                - error_seed_node_determination: "<% not $.seed_node in list(False, True) %>"
+            on-error:
+                - error_seed_node_determination
+        abort_replace:
+            action: core.local
+            input:
+                #channel: "#dsedemo"
+                cmd: "echo STATUS: FAILED REASON: SEED NODE DEAD. NOT HANDLED. ABORTED."
+            on-complete:
+                - fail
+        error_seed_node_determination:
+            action: core.local
+            input:
+                #channel: "#dsedemo"
+                cmd: "echo STATUS: FAILED READON: SEED NODE DETERMINATION FAILED."
+            on-complete:
+                - fail
+        create_vm:
+            action: core.remote
+            input:
+                hosts: "10.20.16.163"
+                cmd: 'ansible-playbook /home/ubuntu/ansible_learn/sample/cassendra/main.yml | grep -Eo "([0-9]{1,3}[\.]){3}[0-9]{1,3}"'
+            publish:
+                replacement_node: "<% task(create_vm).result.get(\"10.20.16.163\").stdout %>"
+            on-success:
+                - get_vm_ip
+        get_vm_ip:
+            action: core.local
+            input:
+                cmd: "echo <% $.replacement_node %> ; sleep 10"
+            on-success:
+                - wait_start_cass
+        wait_start_cass:
+            action: cassandra.waitcass
+            input:
+                hosts: "<% $.replacement_node %>"
+                casshost: "127.0.0.1"
+            on-success:
+                - stop_cassandra_service
+            on-error:
+                - notify_create_vm_failed
+        notify_create_vm_failed:
+            action: core.local
+            input:
+                #channel: "#dsedemo"
+                cmd: "echo  STATUS: FAILED REASON: create_vm_with_role failed."
+            on-complete:
+                - fail
+        stop_cassandra_service:
+            action: cassandra.stop_cassandra
+            input:
+                hosts: "<% $.replacement_node %>"
+            on-success:
+                - remove_cass_data
+        remove_cass_data:
+            action: cassandra.clear_cass_data
+            input:
+                data_dir: "/var/lib/cassandra/"
+                hosts: "<% $.replacement_node %>"
+            on-success:
+                - get-configfile
+        get-configfile:
+            action: cassandra.cc_copy_seed_config
+            input:
+               seed_host: "<% $.healthy_node %>"
+            on-success:
+               - upload_config_to_new_node
+        upload_config_to_new_node:
+            action: cassandra.cc_update_node_config
+            input :
+               new_host: "<% $.replacement_node %>"
+            on-success:
+              - config_change_new_node
+        config_change_new_node:
+            action: cassandra.cc_replace_cass_newnode
+            input:
+              hosts: "<% $.replacement_node %>"
+            on-success:
+                - remove_replace_address_jvm_opt_if_exists
+        remove_replace_address_jvm_opt_if_exists:
+            action: cassandra.remove_replace_address_env_file
+            input:
+                hosts: "<% $.replacement_node %>"
+            on-success:
+                - set_jvm_opts_with_replace_address
+        set_jvm_opts_with_replace_address:
+            action: cassandra.append_replace_address_env_file
+            input:
+                dead_node: <% $.dead_node %>
+                hosts: <% $.replacement_node %>
+            on-success:
+                - start_cassandra_service
+        start_cassandra_service:
+            action: cassandra.start_cassandra
+            input:
+                hosts: "<% $.replacement_node %>"
+            on-success:
+                - wait_start_cass_seed
+        wait_start_cass_seed:
+            action: cassandra.waitcass
+            input:
+                hosts: "<% $.replacement_node %>"
+                casshost: "<% $.healthy_node %>"
+            on-success:
+                - notify_replace_host_started
+        notify_replace_host_started:
+            action: core.local
+            input:
+                #channel: "#dsedemo"
+                cmd: "echo STATUS: STARTED;"
+            on-success:
+                - remove_replace_address_env_file
+        remove_replace_address_env_file:
+            action: cassandra.remove_replace_address_env_file
+            input:
+                hosts: "<% $.replacement_node %>"
+            on-success:
+                - wait_start_cass_ring
+        wait_start_cass_ring:
+            action: cassandra.waitcass
+            input:
+                hosts: "<% $.replacement_node %>"
+                casshost: "<% $.replacement_node %>"
+            on-success:
+                - notify_replace_host_success
+        notify_replace_host_success:
+            action: core.local
+            input:
+                #channel: "#dsedemo"
+                cmd: "echo  STATUS: SUCCEEDED"

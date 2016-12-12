@@ -1,0 +1,9 @@
+---
+name: "wait_healthy_node"
+runner_type: "local-shell-script"
+description: "wiats till cassandra serivece comes up"
+enabled: true
+pack: "cassandra"
+entry_point: "workflows/healthy_node_file_check.sh"
+parameters:
+    

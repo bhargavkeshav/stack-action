@@ -1,0 +1,17 @@
+---
+    name: "sensu_notification_with_webhook"
+    pack: "cassandra"
+    description: "Sample rule printing webhook payload ."
+    enabled: true
+
+    trigger:
+        type: "core.st2.webhook"
+        parameters:
+            url: "cassandra/webhook"
+
+    criteria:
+
+    action:
+        ref: "core.local"
+        parameters:
+            cmd: "echo \"{{trigger.body}}\""

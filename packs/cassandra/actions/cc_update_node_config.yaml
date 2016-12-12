@@ -1,0 +1,22 @@
+---
+name: cc_update_node_config 
+pack: cassandra 
+runner_type: local-shell-cmd
+description: upload cass config to new node
+enabled: true
+entry_point: ''
+parameters:
+  cmd:
+    default:  "scp  -i  {{ssh_key}}  -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null  {{dest_path}}/cassandra.yaml  {{new_host}}:{{dest_path}} ; rm -f {{dest_path}}/cassandra.yaml "
+  cass_yaml:
+    default: "/etc/cassandra/cassandra.yaml"
+  ssh_key:
+    type: string
+    default: /home/stanley/.ssh/stanley_rsa
+  dest_path:
+    type: string
+    default: /tmp/
+  new_host:
+    type: string
+    required: true
+    

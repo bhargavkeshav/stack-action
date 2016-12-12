@@ -1,0 +1,12 @@
+---
+name: stop_cassandra
+runner_type: remote-shell-cmd
+description: Stop  cassandra service.
+enabled: true
+pack: "cassandra"
+entry_point: ''
+parameters:
+  sudo:
+    default: true
+  cmd:
+    default: "service cassandra  stop"

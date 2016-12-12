@@ -1,0 +1,19 @@
+---
+name: cc_execute_remote_ansible  
+runner_type: remote-shell-cmd
+description: execute remote ansible
+pack: cassandra
+enabled: true
+entry_point: ''
+parameters:
+  cmd:
+    default: ansible-playbook -i {{host_path}} {{ansible_script}} --extra-vars "deadnode={{vm_name}}"  
+  ansible_script:
+    default: /home/stanley/myansible/dev-ansible/del-cass.yml
+  host_path:
+    default: "/home/stanley/myansible/dev-ansible/hosts"
+  vm_name:
+     type: "string"
+     description: "host name in ansible"
+     required: true
+  

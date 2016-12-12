@@ -1,0 +1,12 @@
+---
+name: cc_replace_cass_newnode 
+pack: cassandra
+runner_type: remote-shell-cmd
+description: update config in cass new node 
+enabled: true
+entry_point: ''
+parameters:
+  sudo:
+    default: true
+  cmd:
+    default: "cat /tmp/cassandra.yaml >  /etc/cassandra/cassandra.yaml ; rm -f /tmp/cassandra.yaml"

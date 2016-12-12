@@ -1,0 +1,243 @@
+
+version: '2.0'
+
+cassandra.cc_replace_host_v2:
+    description: A basic workflow that replaces a dead cassandra node with a spare.
+    type: direct
+    input:
+        - dead_node_ip
+        - dead_node_host_name
+        - dead_cass_node_name
+        - consul_server
+        - ansible_server
+    output:
+        just_output_the_whole_worfklow_context: "<% $ %>"
+    tasks:
+        silence_node:
+            action: sensu.silence
+            input:
+                client: "<% $.dead_cass_node_name %>"
+                check: "cass_check"
+            on-success:
+                - misc_sleep
+                - stop_consul
+            on-error:
+                - notify_failed
+        stop_consul:
+            action: core.remote_sudo
+            input:
+               cmd: service consul stop
+               hosts: "<% $.dead_node_ip %>"
+            on-error:
+                - notify_failed
+        misc_sleep:
+            action: core.local
+            input:
+                cmd: sleep 10
+            on-complete:
+                - get_healthy_node
+            on-error:
+                - notify_failed
+        get_healthy_node:
+            action: core.remote
+            input:
+                cmd: dig +noall  +answer  @localhost  -p 8600 cass.service.consul +short | head -1
+                hosts: "<% $.consul_server %>"
+            publish:
+                healthy_node : "<% task(get_healthy_node).result.get($.consul_server).stdout %>"
+            on-error:
+                - error_healthy_node_determination
+            on-success:
+                - is_seed_node
+        error_healthy_node_determination:
+            action: core.local
+            input:
+                #channel: "#dsedemo"
+                cmd: "echo STATUS: FAILED READON: HEALTHY NODE DETERMINATION FAILED."
+            on-complete:
+                - notify_failed
+        is_seed_node:
+            action: cassandra.is_seed_node
+            input:
+                hosts: "<% $.healthy_node %>"
+                node_id: "<% $.dead_node_ip %>"
+            publish:
+                seed_node: "<% task(is_seed_node).result.get($.healthy_node).stdout %>"
+            on-success:
+                - abort_replace: "<% $.seed_node = 'True' %>"
+                - error_seed_node_determination: "<% not $.seed_node in list(False, True) %>"
+                - ansible_input: "<% $.seed_node = 'False' %>"
+            on-error:
+                - error_seed_node_determination
+        abort_replace:
+            action: core.local
+            input:
+                #channel: "#dsedemo"
+                cmd: "echo STATUS: FAILED REASON: SEED NODE DEAD. NOT HANDLED. ABORTED."
+            on-complete:
+                - notify_failed
+        error_seed_node_determination:
+            action: core.local
+            input:
+                #channel: "#dsedemo"
+                cmd: "echo STATUS: FAILED READON: SEED NODE DETERMINATION FAILED."
+            on-complete:
+                - notify_failed
+        ansible_input:
+            action: cassandra.cc_set_ansible_host_file
+            input:
+                hosts: "<% $.ansible_server %>"
+                host_name: <% $.healthy_node %>
+            on-error:
+                - notify_failed
+            on-success:
+                - create_vm
+        create_vm:
+            action: cassandra.cc_spin_vm
+            input:
+                hosts: "<% $.ansible_server %>"
+                timeout: 180
+                node_name: "<% $.dead_cass_node_name %>"
+            publish:
+                replacement_node: "<% task(create_vm).result.get($.ansible_server).stdout %>"
+            on-success:
+                - print_vm_ip
+            on-error:
+                - notify_create_vm_failed
+        notify_create_vm_failed:
+            action: core.local
+            input:
+                #channel: "#dsedemo"
+                cmd: "echo  STATUS: FAILED REASON: create_vm_with_role failed."
+            on-complete:
+                - notify_failed
+        print_vm_ip:
+            action: core.local
+            input:
+                cmd: "echo <% $.replacement_node %> "
+            on-success:
+                - remove_replace_address_jvm_opt_if_exists
+            on-error:
+                - notify_failed
+        remove_replace_address_jvm_opt_if_exists:
+            action: cassandra.remove_replace_address_env_file
+            input:
+                hosts: "<% $.replacement_node %>"
+            on-success:
+                - set_jvm_opts_with_replace_address
+            on-error:
+                - notify_failed
+        set_jvm_opts_with_replace_address:
+            action: cassandra.append_replace_address_env_file
+            input:
+                dead_node: <% $.dead_node_ip %>
+                hosts: <% $.replacement_node %>
+            on-success:
+                - start_cassandra_service
+            on-error:
+                - notify_failed
+        start_cassandra_service:
+            action: cassandra.start_cassandra
+            input:
+                hosts: "<% $.replacement_node %>"
+            on-success:
+                - wait_start_cass_seed
+                - start_sensu_client
+            on-error:
+                - notify_failed
+        start_sensu_client:
+            action: core.remote_sudo
+            input:
+               cmd: service sensu-client restart
+               hosts: "<% $.replacement_node %>"
+            on-error:
+               - notify_failed
+        wait_start_cass_seed:
+            action: cassandra.waitcass
+            input:
+                hosts: "<% $.replacement_node %>"
+                casshost: "<% $.healthy_node %>"
+                timeout: 120
+            on-success:
+                - notify_replace_host_started
+            on-error:
+                - notify_failed
+        notify_replace_host_started:
+            action: core.local
+            input:
+                #channel: "#dsedemo"
+                cmd: "echo STATUS: STARTED;"
+            on-success:
+                - remove_replace_address_env_file
+            on-error:
+                - notify_failed
+        remove_replace_address_env_file:
+            action: cassandra.remove_replace_address_env_file
+            input:
+                hosts: "<% $.replacement_node %>"
+            on-success:
+                - wait_start_cass_ring
+                - remove_dead_node
+                - unsilence_node
+                - start_consul
+            on-error:
+                - notify_failed
+        start_consul:
+            action: core.remote_sudo
+            input:
+                cmd: service consul start
+                hosts: "<% $.replacement_node %>"
+            on-error:
+                - notify_failed
+        re_start_consul:
+            action: core.remote_sudo
+            input:
+                cmd: service consul start
+                hosts: "<% $.dead_node_ip %>"
+        unsilence_node:
+            action: sensu.unsilence
+            input:
+                client: "<% $.dead_cass_node_name %>"
+                check: "cass_check"
+            on-error:
+                - notify_failed
+        remove_dead_node:
+            action: cassandra.cc_execute_remote_ansible
+            input:
+                hosts: "<% $.ansible_server %>"
+                vm_name: "<% $.dead_node_host_name %>"
+            on-success:
+                - delete_sensu_client
+            on-error:
+                - notify_failed
+        delete_sensu_client:
+            action: sensu.client_delete
+            input:
+                client: "<% $.dead_node_host_name %>"
+            on-error:
+                - notify_failed
+        wait_start_cass_ring:
+            action: cassandra.waitcass
+            input:
+                hosts: "<% $.replacement_node %>"
+                casshost: "<% $.replacement_node %>"
+                timeout: 120
+            on-success:
+                - notify_replace_host_success
+            on-error:
+                - notify_failed
+        notify_replace_host_success:
+            action: core.local
+            input:
+                #channel: "#dsedemo"
+                cmd: "echo  STATUS: SUCCEEDED"
+        notify_failed:
+            action: core.local
+            input:
+                #channel: "#dsedemo"
+                cmd: "echo  STATUS: FAILED ."
+            on-complete:
+                - unsilence_node
+                - re_start_consul
+                - fail
+

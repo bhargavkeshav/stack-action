@@ -1,0 +1,22 @@
+---
+name: cc_copy_seed_config
+pack: cassandra 
+runner_type: local-shell-cmd
+description: copy seed configfile
+enabled: true
+entry_point: ''
+parameters:
+  cmd:
+    default:  "scp  -i  {{ssh_key}}  -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null  {{seed_host}}:{{cass_yaml}} {{dest_path}}"
+  cass_yaml:
+    default: "/etc/cassandra/cassandra.yaml"
+  ssh_key:
+    type: string
+    default: /home/stanley/.ssh/stanley_rsa
+  dest_path:
+    type: string
+    default: /tmp/
+  seed_host:
+    type: string
+    required: true
+    

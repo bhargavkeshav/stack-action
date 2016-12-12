@@ -1,0 +1,5 @@
+### Place configuration data for your pack here.
+---
+host: '<consul_server_ip>'
+port: 8500
+token: ''

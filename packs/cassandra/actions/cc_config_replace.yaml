@@ -1,0 +1,17 @@
+---
+name: cc_config_replace
+pack: cassandra 
+runner_type: remote-shell-cmd
+description: update config in replace node
+enabled: true
+entry_point: ''
+parameters:
+  sudo:
+    default: true
+  cmd:
+    default: "printf  \"{{config_string}}\"   "
+  cass_yaml:
+    default: "/etc/cassandra/cassandra.yaml"
+  config_string:
+    type: string
+    

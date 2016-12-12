@@ -1,0 +1,32 @@
+
+---
+name: cc_replace_host_v2
+runner_type: mistral-v2
+description: Cassandra replace host workflow.
+enabled: true
+pack: cassandra
+entry_point: workflows/cc_replace_host_v2.yaml
+parameters:
+  dead_node_ip:
+    type: string
+    required: true
+    description: "Dead node to replace."
+  dead_node_host_name:
+    type: string
+    required: true
+    description: "Dead node to replace."
+  dead_cass_node_name:
+    type: string
+    required: true
+    description: "Dead node to replace."
+  consul_server:
+    type: string
+    required: true
+    default : 10.20.16.190
+    description: "Dead node to replace."
+  ansible_server:
+    type: string
+    required: true
+    default : 10.20.16.132
+    description: "Dead node to replace."
+

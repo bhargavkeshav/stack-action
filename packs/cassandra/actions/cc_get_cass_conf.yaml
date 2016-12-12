@@ -1,0 +1,13 @@
+---
+name: cc_get_cass_conf 
+runner_type: remote-shell-cmd
+description: Gets conf details of seed node
+enabled: true
+entry_point: ''
+parameters:
+  sudo:
+    default: true
+  cmd:
+    default: "cat {{cass_yaml}}"
+  cass_yaml:
+    default: "/etc/cassandra/cassandra.yaml"

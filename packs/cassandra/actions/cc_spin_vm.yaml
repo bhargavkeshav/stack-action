@@ -1,0 +1,18 @@
+---
+name: cc_spin_vm 
+runner_type: remote-shell-cmd
+description: execute remote ansible
+pack: cassandra
+enabled: true
+entry_point: ''
+parameters:
+  cmd:
+    default: ansible-playbook -i {{host_path}} {{ansible_script}} --extra-vars "node_name={{node_name}}"  | grep "msg" |grep -Eo "([0-9]{1,3}[\.]){3}[0-9]{1,3}"
+  host_path:
+    default: "/home/stanley/myansible/dev-ansible/hosts"
+  ansible_script:
+    default: /home/stanley/myansible/dev-ansible/cass.yml
+  node_name:
+    type: string
+    required: true
+  

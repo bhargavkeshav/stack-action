@@ -1,0 +1,14 @@
+---
+name: "waitcass"
+runner_type: "remote-shell-script"
+description: "wiats till cassandra serivece comes up"
+enabled: true
+pack: "cassandra"
+entry_point: "waitcass.sh"
+parameters:
+    casshost:
+        type: "string"
+        description: "Host URL"
+        required: true
+        position: 0
+    
